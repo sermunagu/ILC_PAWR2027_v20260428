@@ -1,8 +1,8 @@
 % Reproduce the tutor WF5 compositeall + POMP reference experiment.
 %
-% This script is intentionally separate from the 171-regressor common-model
-% analysis. Here nReg = 200 is used only to reproduce the tutor baseline from
-% the complete compositeall candidate pool.
+% This script is intentionally separate from the CommonK pipeline. Here
+% nReg = 200 is used only to reproduce the tutor baseline from the complete
+% compositeall candidate pool.
 %
 % IMPORTANT:
 % - Do not use rManager.nmse as the final metric here.
