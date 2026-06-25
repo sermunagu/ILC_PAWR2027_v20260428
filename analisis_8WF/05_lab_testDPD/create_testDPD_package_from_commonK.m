@@ -70,6 +70,9 @@ packageMetadata = buildPackageMetadata(cfg, filenamedate, baseExperimentMat, ...
     packageBaseMat, packageXYExecutionMat);
 testDPDMetadata = packageMetadata;
 testDPDMetadata.signalTable = signalTable;
+testDPDMetadata.exportMode = getCfgField(cfg, 'testDPDExportMode', 'commonK_only');
+testDPDMetadata.sourceMapping = ...
+    'specific_POMP200 -> yhatValPOMP200{wf}; common_CommonK -> yhatValCommonK{wf}';
 testDPDMetadata.candidateWarning = 'Candidate yvalmod source: CommonK validation prediction yhatValCommonK{wf}. Confirm block convention before lab injection.';
 
 meas_out = baseData.meas_out; %#ok<NASGU>
@@ -116,6 +119,8 @@ testDPDInfo.rootBaseExperimentMat = rootBaseMat;
 testDPDInfo.rootXYExecutionMat = rootXYExecutionMat;
 testDPDInfo.directLaunchReady = directLaunchReady;
 testDPDInfo.signalSource = cfg.testDPDSignalSource;
+testDPDInfo.exportMode = getCfgField(cfg, 'testDPDExportMode', 'commonK_only');
+testDPDInfo.nSignals = numel(dpd);
 testDPDInfo.command = sprintf(['filenamedate = ''%s'';\n' ...
     'main_testDPD_ADRV_v2060226'], filenamedate);
 testDPDInfo.manifestCsv = manifestCsv;
@@ -250,77 +255,116 @@ function validateBaseExperimentMat(baseExperimentMat)
 end
 
 function [dpd, signalTable] = buildDpdFromEvaluation(cfg)
-    sourceName = cfg.testDPDSignalSource;
-    if ~strcmp(sourceName, 'yhatValCommonK')
-        error('Unsupported cfg.testDPDSignalSource: %s. Expected yhatValCommonK.', ...
-            sourceName);
+    exportMode = getCfgField(cfg, 'testDPDExportMode', 'commonK_only');
+    validModes = {'commonK_only', 'specific_only', 'both'};
+    if ~ismember(exportMode, validModes)
+        error('Unsupported cfg.testDPDExportMode: %s.', exportMode);
     end
 
-    E = load(cfg.finalEvaluationMat, sourceName, 'configuration');
-    if ~isfield(E, sourceName)
-        error('Evaluation MAT lacks required signal source: %s', sourceName);
+    E = load(cfg.finalEvaluationMat, 'yhatValPOMP200', 'yhatValCommonK', ...
+        'configuration');
+    if ~isfield(E, 'yhatValPOMP200')
+        error('Evaluation MAT lacks required signal source: yhatValPOMP200.');
     end
-    sourceSignals = E.(sourceName);
-    if ~iscell(sourceSignals)
-        error('%s must be a cell array in %s.', sourceName, ...
-            cfg.finalEvaluationMat);
+    if ~isfield(E, 'yhatValCommonK')
+        error('Evaluation MAT lacks required signal source: yhatValCommonK.');
+    end
+    if ~iscell(E.yhatValPOMP200) || ~iscell(E.yhatValCommonK)
+        error('yhatValPOMP200 and yhatValCommonK must be cell arrays.');
     end
 
     waveformsToExport = getCfgField(cfg, 'testDPDWaveformsToExport', ...
-        1:numel(sourceSignals));
+        1:numel(E.yhatValCommonK));
     waveformsToExport = waveformsToExport(:).';
     if isempty(waveformsToExport)
         error('cfg.testDPDWaveformsToExport is empty.');
     end
-    if any(waveformsToExport < 1) || any(waveformsToExport > numel(sourceSignals)) ...
+    maxWaveform = min(numel(E.yhatValPOMP200), numel(E.yhatValCommonK));
+    if any(waveformsToExport < 1) || any(waveformsToExport > maxWaveform) ...
             || any(waveformsToExport ~= floor(waveformsToExport))
         error('cfg.testDPDWaveformsToExport contains invalid waveform indices.');
     end
 
-    dpd = repmat(struct('yvalmod', [], 'modeltype', '', ...
-        'commonLabel', '', 'nCommon', NaN, 'waveformIndex', NaN, ...
-        'measurementDirName', '', 'experimentName', '', 'runStamp', '', ...
-        'signalSource', '', 'createdBy', ''), numel(waveformsToExport), 1);
-
-    signalIndex = (1:numel(waveformsToExport)).';
-    waveformIndex = waveformsToExport(:);
-    modeltype = cell(numel(waveformsToExport), 1);
-    nSamples = NaN(numel(waveformsToExport), 1);
-    rmsValue = NaN(numel(waveformsToExport), 1);
-    paprDb = NaN(numel(waveformsToExport), 1);
-    source = repmat({sourceName}, numel(waveformsToExport), 1);
-    edgeLoss = repmat(cfg.Qpmax + cfg.Qnmax, numel(waveformsToExport), 1);
-
-    for i = 1:numel(waveformsToExport)
-        wf = waveformsToExport(i);
-        yvalmod = sourceSignals{wf};
-        if ~(isnumeric(yvalmod) && isvector(yvalmod) && all(isfinite(yvalmod(:))))
-            error('%s{%d} must be a finite numeric vector.', sourceName, wf);
-        end
-        yvalmod = yvalmod(:);
-        modeltype{i} = sprintf('%s_struct_ge%d_%s_WF%02d', ...
-            cfg.commonLabel, cfg.commonSupportThreshold, ...
-            cfg.commonThresholdTag, wf);
-
-        dpd(i).yvalmod = yvalmod;
-        dpd(i).modeltype = modeltype{i};
-        dpd(i).commonLabel = cfg.commonLabel;
-        dpd(i).nCommon = cfg.nCommon;
-        dpd(i).waveformIndex = wf;
-        dpd(i).measurementDirName = cfg.measurementDirName;
-        dpd(i).experimentName = cfg.experimentName;
-        dpd(i).runStamp = cfg.runStamp;
-        dpd(i).signalSource = sourceName;
-        dpd(i).createdBy = mfilename;
-
-        nSamples(i) = numel(yvalmod);
-        powerValue = mean(abs(yvalmod).^2);
-        rmsValue(i) = sqrt(powerValue);
-        paprDb(i) = 10 * log10(max(abs(yvalmod).^2) / powerValue);
+    families = {};
+    if strcmp(exportMode, 'specific_only') || strcmp(exportMode, 'both')
+        families{end + 1} = 'specific_POMP200'; %#ok<AGROW>
+    end
+    if strcmp(exportMode, 'commonK_only') || strcmp(exportMode, 'both')
+        families{end + 1} = 'common_CommonK'; %#ok<AGROW>
     end
 
-    signalTable = table(signalIndex, waveformIndex, modeltype, source, ...
-        nSamples, rmsValue, paprDb, edgeLoss);
+    nSignals = numel(waveformsToExport) * numel(families);
+    dpd = repmat(struct('yvalmod', [], 'modeltype', '', ...
+        'modelFamily', '', 'sourceVariable', '', ...
+        'commonLabel', '', 'nCommon', NaN, 'waveformIndex', NaN, ...
+        'measurementDirName', '', 'experimentName', '', 'runStamp', '', ...
+        'signalSource', '', 'exportMode', '', 'createdBy', ''), nSignals, 1);
+
+    signalIndex = (1:nSignals).';
+    waveformIndex = NaN(nSignals, 1);
+    modelFamily = cell(nSignals, 1);
+    modeltype = cell(nSignals, 1);
+    sourceVariable = cell(nSignals, 1);
+    nSamples = NaN(nSignals, 1);
+    rmsValue = NaN(nSignals, 1);
+    paprDb = NaN(nSignals, 1);
+    edgeLoss = repmat(cfg.Qpmax + cfg.Qnmax, nSignals, 1);
+
+    row = 0;
+    for iFamily = 1:numel(families)
+        family = families{iFamily};
+        for iWaveform = 1:numel(waveformsToExport)
+            wf = waveformsToExport(iWaveform);
+            row = row + 1;
+
+            if strcmp(family, 'specific_POMP200')
+                sourceName = 'yhatValPOMP200';
+                yvalmod = E.yhatValPOMP200{wf};
+                thisModelType = sprintf('POMP200_specific_WF%02d', wf);
+                thisCommonLabel = '';
+                thisNCommon = NaN;
+            else
+                sourceName = 'yhatValCommonK';
+                yvalmod = E.yhatValCommonK{wf};
+                thisModelType = sprintf('%s_struct_ge%d_%s_WF%02d', ...
+                    cfg.commonLabel, cfg.commonSupportThreshold, ...
+                    cfg.commonThresholdTag, wf);
+                thisCommonLabel = cfg.commonLabel;
+                thisNCommon = cfg.nCommon;
+            end
+
+            if ~(isnumeric(yvalmod) && isvector(yvalmod) && all(isfinite(yvalmod(:))))
+                error('%s{%d} must be a finite numeric vector.', sourceName, wf);
+            end
+            yvalmod = yvalmod(:);
+
+            dpd(row).yvalmod = yvalmod;
+            dpd(row).modeltype = thisModelType;
+            dpd(row).modelFamily = family;
+            dpd(row).sourceVariable = sourceName;
+            dpd(row).commonLabel = thisCommonLabel;
+            dpd(row).nCommon = thisNCommon;
+            dpd(row).waveformIndex = wf;
+            dpd(row).measurementDirName = cfg.measurementDirName;
+            dpd(row).experimentName = cfg.experimentName;
+            dpd(row).runStamp = cfg.runStamp;
+            dpd(row).signalSource = sourceName;
+            dpd(row).exportMode = exportMode;
+            dpd(row).createdBy = mfilename;
+
+            waveformIndex(row) = wf;
+            modelFamily{row} = family;
+            modeltype{row} = thisModelType;
+            sourceVariable{row} = sourceName;
+            nSamples(row) = numel(yvalmod);
+            powerValue = mean(abs(yvalmod).^2);
+            rmsValue(row) = sqrt(powerValue);
+            paprDb(row) = 10 * log10(max(abs(yvalmod).^2) / powerValue);
+        end
+    end
+
+    signalTable = table(signalIndex, waveformIndex, modelFamily, modeltype, ...
+        sourceVariable, nSamples, rmsValue, paprDb, edgeLoss);
 end
 
 function metadata = buildPackageMetadata(cfg, filenamedate, baseExperimentMat, ...
@@ -338,6 +382,7 @@ function metadata = buildPackageMetadata(cfg, filenamedate, baseExperimentMat, .
     metadata.experimentName = cfg.experimentName;
     metadata.runStamp = cfg.runStamp;
     metadata.signalSource = cfg.testDPDSignalSource;
+    metadata.exportMode = getCfgField(cfg, 'testDPDExportMode', 'commonK_only');
     metadata.note = ['main_testDPD_ADRV_v2060226.m will apply CFR internally ' ...
         'with xCFR = CFR_hard(x, 15).'];
 end
@@ -380,8 +425,15 @@ function manifest = validatePackageFiles(packageBaseMat, packageXYExecutionMat, 
     manifest = addManifestRow(manifest, 'direct_testDPD_launch_ready', 'ok', ...
         'True only when files were copied to results root', ...
         logicalText(directLaunchReady));
+    exportMode = getCfgField(cfg, 'testDPDExportMode', 'commonK_only');
     manifest = addManifestRow(manifest, 'signal_source', 'ok', ...
-        'Candidate signal used for dpd(k).yvalmod', cfg.testDPDSignalSource);
+        'Default/CommonK candidate signal. See per-dpd source_variable rows.', ...
+        cfg.testDPDSignalSource);
+    manifest = addManifestRow(manifest, 'testDPD_export_mode', 'ok', ...
+        'Signal families exported into dpd', exportMode);
+    manifest = addManifestRow(manifest, 'candidate_yvalmod_sources', 'ok', ...
+        'Source mapping for exported dpd(k).yvalmod entries', ...
+        'specific_POMP200 -> yhatValPOMP200{wf}; common_CommonK -> yhatValCommonK{wf}');
     manifest = addManifestRow(manifest, 'candidate_yvalmod_source', 'ok', ...
         'Explicit MATLAB source for dpd(k).yvalmod', 'yhatValCommonK{wf}');
     manifest = addManifestRow(manifest, 'candidate_yvalmod_warning', 'warning', ...
@@ -417,6 +469,15 @@ function manifest = validatePackageFiles(packageBaseMat, packageXYExecutionMat, 
         manifest = addManifestRow(manifest, [prefix '_modeltype_exists'], ...
             statusFrom(hasMember(dpd(k), 'modeltype')), ...
             'main_testDPD uses dpd(k).modeltype', '');
+        if hasMember(dpd(k), 'modelFamily')
+            manifest = addManifestRow(manifest, [prefix '_model_family'], ...
+                'ok', 'Exported signal family', getMember(dpd(k), 'modelFamily'));
+        end
+        if hasMember(dpd(k), 'sourceVariable')
+            manifest = addManifestRow(manifest, [prefix '_source_variable'], ...
+                'ok', 'Evaluation variable used for yvalmod', ...
+                getMember(dpd(k), 'sourceVariable'));
+        end
         manifest = addManifestRow(manifest, [prefix '_yvalmod_exists'], ...
             statusFrom(hasMember(dpd(k), 'yvalmod')), ...
             'main_testDPD uses dpd(k).yvalmod', '');
@@ -490,6 +551,8 @@ function writeSummary(summaryTxt, cfg, filenamedate, packageBaseMat, ...
     fprintf(fid, 'Measurement: %s\n', cfg.measurementDirName);
     fprintf(fid, 'Experiment: %s\n', cfg.experimentName);
     fprintf(fid, 'Signal source: %s\n', cfg.testDPDSignalSource);
+    fprintf(fid, 'Export mode: %s\n', ...
+        getCfgField(cfg, 'testDPDExportMode', 'commonK_only'));
     fprintf(fid, 'Candidate warning: %s\n\n', candidateWarning);
     fprintf(fid, 'Base experiment file: %s\n', packageBaseMat);
     fprintf(fid, 'XY execution file: %s\n', packageXYExecutionMat);

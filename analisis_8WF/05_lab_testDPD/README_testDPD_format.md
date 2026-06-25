@@ -112,10 +112,43 @@ Cada entrada debe contener:
 
 Si la fuente ya contiene una estructura `dpd` con más campos, el exportador conserva esos campos.
 
-En el paquete generado por el maestro, la fuente oficial es:
+En el paquete generado por el maestro, las fuentes dependen del modo de exportación:
 
 ```matlab
-dpd(k).yvalmod = yhatValCommonK{wf};
+dpd(k).yvalmod = yhatValCommonK{wf};  % commonK_only
+dpd(k).yvalmod = yhatValPOMP200{wf};  % specific_only
+% both exporta primero yhatValPOMP200{wf} y despues yhatValCommonK{wf}
+```
+
+El modo se controla con:
+
+```matlab
+cfg.testDPDExportMode = 'commonK_only';
+cfg.testDPDExportMode = 'specific_only';
+cfg.testDPDExportMode = 'both';
+```
+
+Para el entregable actual:
+
+```matlab
+cfg.testDPDExportMode = 'both';
+```
+
+Con `both`, el `dpd` generado tiene 16 entradas:
+
+```text
+dpd(1:8)  -> POMP200 especifico WF01-WF08
+dpd(9:16) -> CommonK WF01-WF08
+```
+
+Cada entrada incluye:
+
+```matlab
+dpd(k).yvalmod
+dpd(k).modeltype
+dpd(k).modelFamily
+dpd(k).waveformIndex
+dpd(k).sourceVariable
 ```
 
 El `modeltype` se genera como:
@@ -128,7 +161,9 @@ Campos extra incluidos por el maestro:
 
 - `dpd(k).commonLabel`
 - `dpd(k).nCommon`
+- `dpd(k).modelFamily`
 - `dpd(k).waveformIndex`
+- `dpd(k).sourceVariable`
 - `dpd(k).measurementDirName`
 - `dpd(k).experimentName`
 - `dpd(k).runStamp`

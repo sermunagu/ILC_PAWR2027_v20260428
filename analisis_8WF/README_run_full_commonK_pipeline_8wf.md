@@ -25,9 +25,11 @@ cfg.commonSupportThreshold = 6;
 cfg.experimentName = '';
 
 cfg.createTestDPDPackage = true;
+cfg.createTutorSignalPackage = true;
 cfg.testDPDBaseExperimentDate = '';
 cfg.testDPDBaseExperimentMat = '';
 cfg.testDPDSignalSource = 'yhatValCommonK';
+cfg.testDPDExportMode = 'both';
 cfg.copyTestDPDPackageToResultsRoot = false;
 ```
 
@@ -57,8 +59,10 @@ run('analisis_8WF/run_full_commonK_pipeline_8wf.m')
 6. Filtra por soporte estructural y construye CommonK.
 7. Evalúa CommonK frente a POMP200 específico por waveform.
 8. Guarda `yhatValCommonK{wf}` y señales alineadas en el `.mat` de evaluación.
-9. Genera y valida el paquete `testDPD` desde `yhatValCommonK{wf}`.
-10. Guarda el run timestamped y actualiza el alias `latest/`.
+9. Guarda `yhatValPOMP200{wf}` y señales alineadas POMP200 en el `.mat` de evaluación.
+10. Genera el paquete del tutor con señales específicas POMP200 y CommonK.
+11. Genera y valida el paquete `testDPD` según `cfg.testDPDExportMode`.
+12. Guarda el run timestamped y actualiza el alias `latest/`.
 
 ## Salidas
 
@@ -76,6 +80,7 @@ Dentro se guardan:
 - `<commonLabel>_lab_package_<measurementTag>_<runStamp>.mat`
 - `<commonLabel>_summary_<measurementTag>_<runStamp>.txt`
 - `<commonLabel>_manifest_<measurementTag>_<runStamp>.csv`
+- `tutor_signal_package/`
 - `testDPD/experiment<filenamedate>.mat`
 - `testDPD/experiment<filenamedate>_xy_execution.mat`
 - `testDPD/testDPD_manifest.csv`
@@ -95,7 +100,53 @@ con:
 - `latest_lab_package.mat`
 - `latest_summary.txt`
 - `latest_manifest.csv`
+- `tutor_signal_package/`
 - `testDPD/`
+
+## Paquete del Tutor
+
+Si:
+
+```matlab
+cfg.createTutorSignalPackage = true;
+```
+
+el maestro llama automaticamente a:
+
+```matlab
+analisis_8WF/06_tutor_deliverable/create_tutor_signal_package_commonK.m
+```
+
+El paquete se guarda en:
+
+```text
+results/common_model_experiments/<measurementDirName>/<experimentName>/<runStamp>/tutor_signal_package/
+```
+
+y como alias en:
+
+```text
+results/common_model_experiments/<measurementDirName>/<experimentName>/latest/tutor_signal_package/
+```
+
+Contiene:
+
+- `signals_specific_POMP200.mat` con `specificSignals`.
+- `signals_common_CommonK.mat` con `commonSignals`.
+- `signals_combined_specific_and_common.mat` con `specificSignals`, `commonSignals` y `signalPackageMetadata`.
+- `tutor_signal_manifest.csv`.
+- `tutor_signal_package_summary.txt`.
+- `README_tutor_signal_package.md`.
+- `tutor_signal_package_<measurementTag>_<experimentName>_<runStamp>.zip`.
+
+Las fuentes son:
+
+```matlab
+yhatValPOMP200{wf}
+yhatValCommonK{wf}
+```
+
+Estas son predicciones de validacion reconstruidas por los modelos. Confirmar la convencion de bloque antes de inyeccion final en laboratorio.
 
 ## Paquete `testDPD`
 
@@ -141,11 +192,15 @@ Por seguridad, no se sobrescriben archivos existentes en `results/` salvo que:
 cfg.allowOverwriteTestDPDExactFile = true;
 ```
 
-La senal candidata para laboratorio es:
+El paquete `testDPD` puede exportar:
 
 ```matlab
-dpd(k).yvalmod = yhatValCommonK{wf};
+cfg.testDPDExportMode = 'commonK_only';
+cfg.testDPDExportMode = 'specific_only';
+cfg.testDPDExportMode = 'both';
 ```
+
+Para el entregable actual se usa `both`. En ese caso `dpd(1:8)` son `specific_POMP200` y `dpd(9:16)` son `common_CommonK`.
 
 `main_testDPD_ADRV_v2060226.m` aplicara CFR internamente:
 

@@ -2,7 +2,7 @@
 
 Esta carpeta contiene los scripts usados para construir y evaluar un modelo común CommonK sobre 8 waveforms ILC. El número K no es fijo: se calcula automáticamente para cada campaña aplicando el criterio de soporte estructural configurado.
 
-CommonK es el flujo oficial. Common171 queda solo como histórico/deprecated.
+CommonK es el flujo oficial. Las entradas Common171 legacy quedan deshabilitadas en la carpeta activa para evitar cualquier fallback al flujo antiguo de tamaño fijo.
 
 ## Flujo principal
 
@@ -22,6 +22,8 @@ cfg.commonSupportThreshold = 6;
 cfg.experimentName = '';
 
 cfg.createTestDPDPackage = true;
+cfg.createTutorSignalPackage = true;
+cfg.testDPDExportMode = 'both';
 cfg.testDPDBaseExperimentDate = '';
 cfg.testDPDBaseExperimentMat = '';
 cfg.copyTestDPDPackageToResultsRoot = false;
@@ -63,13 +65,56 @@ Para `ILC_8waveforms_20260624`, con `structuralSupportWaveformCount >= 6` y `thr
    Reproduce el baseline del tutor en WF5 usando compositeall + POMP200.
 
 6. `03_evaluacion/eval_common171_tutor_method_wf5.m`
-   Script histórico de WF5. No forma parte del flujo principal CommonK.
+   Entrada histórica deshabilitada. No ejecuta el flujo antiguo; el flujo vigente es CommonK.
 
 7. `03_evaluacion/eval_commonK_vs_pomp200_all8.m`
-   Extiende la comparación tutor-method a las 8 waveforms: POMP200 específico vs CommonK. El número de regresores comunes se lee del CSV indicado por el maestro. También guarda `yhatValCommonK{wf}`, que se usa como señal candidata `dpd(k).yvalmod`.
+   Extiende la comparación tutor-method a las 8 waveforms: POMP200 específico vs CommonK. El número de regresores comunes se lee del CSV indicado por el maestro. También guarda `yhatValPOMP200{wf}` y `yhatValCommonK{wf}` para el paquete del tutor y el paquete testDPD.
 
 8. `05_lab_testDPD/`
    Herramientas offline para crear y validar el paquete compatible con `main_testDPD_ADRV_v2060226.m`. El maestro llama automáticamente a `create_testDPD_package_from_commonK.m` si `cfg.createTestDPDPackage = true`.
+
+9. `06_tutor_deliverable/`
+   Genera automaticamente el paquete final del tutor con senales especificas POMP200 y senales CommonK.
+
+## Paquete del Tutor
+
+El maestro genera:
+
+```text
+results/common_model_experiments/<measurementDirName>/<experimentName>/<runStamp>/tutor_signal_package/
+```
+
+con:
+
+```text
+tutor_signal_package_summary.txt
+tutor_signal_manifest.csv
+signals_specific_POMP200.mat
+signals_common_CommonK.mat
+signals_combined_specific_and_common.mat
+README_tutor_signal_package.md
+tutor_signal_package_<measurementTag>_<experimentName>_<runStamp>.zip
+```
+
+Las senales especificas por waveform usan:
+
+```matlab
+yhatValPOMP200{wf}
+```
+
+Las senales del modelo comun usan:
+
+```matlab
+yhatValCommonK{wf}
+```
+
+Para el entregable actual:
+
+```matlab
+cfg.testDPDExportMode = 'both';
+```
+
+Con `both`, el paquete `testDPD` genera `dpd` con 16 entradas: `dpd(1:8)` son POMP200 especifico WF01-WF08 y `dpd(9:16)` son CommonK WF01-WF08. `main_testDPD_ADRV_v2060226.m` recorrera `numel(dpd)`.
 
 ## Paquete testDPD
 

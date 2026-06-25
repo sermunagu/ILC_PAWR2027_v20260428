@@ -21,6 +21,7 @@ cfg.forceRecomputeCommonModel = true;  % and the common model from scratch
 cfg.runSpecific300Evaluation = false;
 cfg.runTutorPOMP200Evaluation = true;
 cfg.createLabPackage = true;
+cfg.createTutorSignalPackage = true;
 cfg.createTestDPDPackage = true;
 
 cfg.measurementDirName = 'ILC_8waveforms_20260624';
@@ -46,6 +47,7 @@ cfg.testDPDBaseExperimentDate = '';
 cfg.testDPDBaseExperimentMat = '';
 cfg.testDPDWaveformsToExport = 1:8;
 cfg.testDPDSignalSource = 'yhatValCommonK';
+cfg.testDPDExportMode = 'both';  % commonK_only | specific_only | both
 cfg.copyTestDPDPackageToResultsRoot = true;
 cfg.allowOverwriteTestDPDExactFile = false;
 
@@ -70,6 +72,9 @@ cd(repoRoot);
 setappdata(0, 'analisis8WF_pipeline_cfg', cfg);
 if isappdata(0, 'analisis8WF_testDPD_info')
     rmappdata(0, 'analisis8WF_testDPD_info');
+end
+if isappdata(0, 'analisis8WF_tutor_package_info')
+    rmappdata(0, 'analisis8WF_tutor_package_info');
 end
 cleanupPipelineCfg = onCleanup(@() clearPipelineConfigAppdata());
 
@@ -148,6 +153,23 @@ cfg.finalResultsCsv = finalResultsCsv;
 cfg.finalEvaluationMat = finalResultsMat;
 setappdata(0, 'analisis8WF_pipeline_cfg', cfg);
 
+tutorPackageInfo = struct();
+if cfg.createTutorSignalPackage
+    if isappdata(0, 'analisis8WF_tutor_package_info')
+        rmappdata(0, 'analisis8WF_tutor_package_info');
+    end
+    stageRows = runStage(stageRows, 'create_tutor_signal_package_commonK', ...
+        paths.createTutorPackageScript);
+    if isappdata(0, 'analisis8WF_tutor_package_info')
+        tutorPackageInfo = getappdata(0, 'analisis8WF_tutor_package_info');
+    end
+else
+    fprintf('\n[SKIP] create_tutor_signal_package_commonK: disabled by cfg.\n');
+    stageRows = appendStage(stageRows, 'create_tutor_signal_package_commonK', ...
+        'skipped', 'Disabled by cfg.createTutorSignalPackage', ...
+        paths.createTutorPackageScript);
+end
+
 testDPDInfo = struct();
 if cfg.createTestDPDPackage
     if isappdata(0, 'analisis8WF_testDPD_info')
@@ -174,7 +196,7 @@ writetable(stageTable, pipelineSummaryCsv);
 
 finalOutputs = publishFinalExperimentOutputs(paths, cfg, runStamp, ...
     repoRoot, waveformFiles, commonInfo, finalResultsCsv, finalResultsMat, ...
-    specific300Csv, pipelineSummaryCsv, testDPDInfo);
+    specific300Csv, pipelineSummaryCsv, testDPDInfo, tutorPackageInfo);
 
 fprintf('\n=== Pipeline summary ===\n');
 fprintf('Common label: %s\n', cfg.commonLabel);
@@ -186,10 +208,16 @@ else
     fprintf('Final %s vs POMP200 CSV: not found\n', cfg.commonLabel);
 end
 fprintf('Pipeline stage log:\n  %s\n', pipelineSummaryCsv);
+if ~isempty(fieldnames(tutorPackageInfo))
+    fprintf('Tutor signal package:\n  %s\n', tutorPackageInfo.packageDir);
+    fprintf('Tutor signal ZIP:\n  %s\n', tutorPackageInfo.zipFile);
+end
 if ~isempty(fieldnames(testDPDInfo))
     fprintf('testDPD package:\n  %s\n', testDPDInfo.packageDir);
     fprintf('Direct testDPD launch ready: %s\n', ...
         logicalText(testDPDInfo.directLaunchReady));
+    fprintf('testDPD export mode: %s (%d signals)\n', ...
+        testDPDInfo.exportMode, testDPDInfo.nSignals);
     fprintf('testDPD command:\nfilenamedate = ''%s'';\nmain_testDPD_ADRV_v2060226\n', ...
         testDPDInfo.filenamedate);
 end
@@ -277,6 +305,8 @@ function paths = buildPipelinePaths(repoRoot, cfg)
         '03_evaluacion', 'eval_commonK_vs_specific300_all8.m');
     paths.evalPomp200Script = fullfile(analysisDir, ...
         '03_evaluacion', 'eval_commonK_vs_pomp200_all8.m');
+    paths.createTutorPackageScript = fullfile(analysisDir, ...
+        '06_tutor_deliverable', 'create_tutor_signal_package_commonK.m');
     paths.createTestDPDScript = fullfile(analysisDir, ...
         '05_lab_testDPD', 'create_testDPD_package_from_commonK.m');
     paths.readme = fullfile(analysisDir, 'README_ANALISIS_8WF.md');
@@ -539,7 +569,7 @@ end
 
 function finalOutputs = publishFinalExperimentOutputs(paths, cfg, runStamp, ...
     repoRoot, waveformFiles, commonInfo, finalResultsCsv, finalResultsMat, ...
-    specific300Csv, pipelineSummaryCsv, testDPDInfo)
+    specific300Csv, pipelineSummaryCsv, testDPDInfo, tutorPackageInfo)
 
     if cfg.runTutorPOMP200Evaluation && ...
             (isempty(finalResultsCsv) || ~exist(finalResultsCsv, 'file'))
@@ -587,11 +617,11 @@ function finalOutputs = publishFinalExperimentOutputs(paths, cfg, runStamp, ...
     save(finalOutputs.labPackageMat, 'cfg', 'runStamp', 'repoRoot', ...
         'waveformFiles', 'commonCsvPath', 'finalResultsCsv', 'resultsTable', ...
         'commonRegressors', 'commonMetadata', 'conceptualNote', 'metrics', ...
-        'testDPDInfo', '-v7.3');
+        'testDPDInfo', 'tutorPackageInfo', '-v7.3');
 
     writeExperimentSummary(finalOutputs.summaryTxt, cfg, runStamp, ...
         commonCsvPath, finalResultsCsv, commonRegressors, resultsTable, ...
-        metrics, conceptualNote, testDPDInfo);
+        metrics, conceptualNote, testDPDInfo, tutorPackageInfo);
 
     manifestRows = {
         'common_model_csv', commonInfo.filteredCsv;
@@ -634,7 +664,8 @@ function metrics = computeDeltaMetrics(resultsTable)
 end
 
 function writeExperimentSummary(summaryTxt, cfg, runStamp, commonCsvPath, finalResultsCsv, ...
-    commonRegressors, resultsTable, metrics, conceptualNote, testDPDInfo)
+    commonRegressors, resultsTable, metrics, conceptualNote, testDPDInfo, ...
+    tutorPackageInfo)
 
     fid = fopen(summaryTxt, 'w');
     if fid < 0
@@ -660,6 +691,14 @@ function writeExperimentSummary(summaryTxt, cfg, runStamp, commonCsvPath, finalR
     fprintf(fid, 'Number of common regressors: %d\n\n', height(commonRegressors));
     fprintf(fid, 'Conceptual note:\n%s\n\n', conceptualNote);
 
+    if ~isempty(fieldnames(tutorPackageInfo))
+        fprintf(fid, 'Tutor signal package:\n');
+        fprintf(fid, 'Package directory: %s\n', tutorPackageInfo.packageDir);
+        fprintf(fid, 'ZIP file: %s\n', tutorPackageInfo.zipFile);
+        fprintf(fid, 'Specific signals: %d\n', tutorPackageInfo.nSpecificSignals);
+        fprintf(fid, 'Common signals: %d\n\n', tutorPackageInfo.nCommonSignals);
+    end
+
     if ~isempty(fieldnames(testDPDInfo))
         fprintf(fid, 'testDPD package:\n');
         fprintf(fid, 'Direct testDPD launch ready: %s\n', ...
@@ -669,6 +708,8 @@ function writeExperimentSummary(summaryTxt, cfg, runStamp, commonCsvPath, finalR
         fprintf(fid, 'Base experiment file: %s\n', testDPDInfo.baseExperimentMat);
         fprintf(fid, 'XY execution file: %s\n', testDPDInfo.xyExecutionMat);
         fprintf(fid, 'Signal source: %s\n', testDPDInfo.signalSource);
+        fprintf(fid, 'Export mode: %s\n', testDPDInfo.exportMode);
+        fprintf(fid, 'Number of dpd signals: %d\n', testDPDInfo.nSignals);
         fprintf(fid, 'Command:\n');
         fprintf(fid, 'filenamedate = ''%s'';\n', testDPDInfo.filenamedate);
         fprintf(fid, 'main_testDPD_ADRV_v2060226\n\n');

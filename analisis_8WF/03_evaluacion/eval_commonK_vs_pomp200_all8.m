@@ -145,6 +145,12 @@ coefficientsPOMP200Norm = cell(nWaveforms, 1);
 colNormPOMP200Pool = cell(nWaveforms, 1);
 selectedRegressorsPOMP200 = cell(nWaveforms, 1);
 nmsePOMP200ByRank = cell(nWaveforms, 1);
+yhatIdPOMP200 = cell(nWaveforms, 1);
+yhatValPOMP200 = cell(nWaveforms, 1);
+xIdAlignedPOMP200 = cell(nWaveforms, 1);
+yIdAlignedPOMP200 = cell(nWaveforms, 1);
+xValAlignedPOMP200 = cell(nWaveforms, 1);
+yValAlignedPOMP200 = cell(nWaveforms, 1);
 
 coefficientsCommon = cell(nWaveforms, 1);
 coefficientsCommonNorm = cell(nWaveforms, 1);
@@ -202,6 +208,12 @@ for wf = 1:nWaveforms
     colNormPOMP200Pool{wf} = baseline.colNorm;
     selectedRegressorsPOMP200{wf} = baseline.selectedPopulation;
     nmsePOMP200ByRank{wf} = baseline.nmseByRank;
+    yhatIdPOMP200{wf} = baseline.yhat_id;
+    yhatValPOMP200{wf} = baseline.yhat_val;
+    xIdAlignedPOMP200{wf} = baseline.x_id_aligned;
+    yIdAlignedPOMP200{wf} = baseline.y_id_aligned;
+    xValAlignedPOMP200{wf} = baseline.x_val_aligned;
+    yValAlignedPOMP200{wf} = baseline.y_val_aligned;
 
     coefficientsCommon{wf} = commonModel.h;
     coefficientsCommonNorm{wf} = commonModel.hNorm;
@@ -277,6 +289,9 @@ save(outputMat, 'configuration', 'summaryTable', 'summaryMeans', ...
     'coefficientsPOMP200', 'coefficientsPOMP200Norm', ...
     'colNormPOMP200Pool', 'selectedRegressorsPOMP200', ...
     'nmsePOMP200ByRank', 'coefficientsCommon', ...
+    'yhatIdPOMP200', 'yhatValPOMP200', ...
+    'xIdAlignedPOMP200', 'yIdAlignedPOMP200', ...
+    'xValAlignedPOMP200', 'yValAlignedPOMP200', ...
     'coefficientsCommonNorm', 'colNormCommon', ...
     'yhatIdCommonK', 'yhatValCommonK', ...
     'xIdAligned', 'yIdAligned', 'xValAligned', 'yValAligned', ...
@@ -447,13 +462,15 @@ function baseline = fitCompositeAllPomp200(xIdRaw, yIdRaw, xValRaw, yValRaw, ...
     rManager.buildX();
     X_id = rManager.X;
     y_id = rManager.yX;
+    idAlignedIndices = rManager.n(1 + rManager.Qpmax:end - rManager.Qnmax);
+    x_id_aligned = xIdRaw(idAlignedIndices);
     rManager.clearRegressors();
 
     pomp = runPompTutorReference(X_id, y_id, nReg, alpha, lambda, ...
         diagLoad, verboseIterations);
 
     selectedPopulation = cloneRegressorPopulation(poolPopulation(pomp.support));
-    [X_val, y_val] = buildMatrixWithRegressorManager(xValRaw, yValRaw, ...
+    [X_val, y_val, x_val_aligned] = buildMatrixWithRegressorManager(xValRaw, yValRaw, ...
         selectedPopulation, GVGconfig);
 
     yhat_id = X_id(:, pomp.support) * pomp.h;
@@ -463,6 +480,12 @@ function baseline = fitCompositeAllPomp200(xIdRaw, yIdRaw, xValRaw, yValRaw, ...
     baseline.NMSE_val = calcNmseDb(y_val, yhat_val);
     baseline.idUsefulSamples = numel(y_id);
     baseline.valUsefulSamples = numel(y_val);
+    baseline.yhat_id = yhat_id;
+    baseline.yhat_val = yhat_val;
+    baseline.x_id_aligned = x_id_aligned;
+    baseline.y_id_aligned = y_id;
+    baseline.x_val_aligned = x_val_aligned;
+    baseline.y_val_aligned = y_val;
     baseline.support = pomp.support;
     baseline.h = pomp.h;
     baseline.hNorm = pomp.hNorm;

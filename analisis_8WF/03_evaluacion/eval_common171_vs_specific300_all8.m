@@ -1,8 +1,6 @@
-% Deprecated wrapper kept for backwards compatibility.
-% This is not part of the CommonK master pipeline.
+% Deprecated Common171 entry point.
+% This script is intentionally disabled so the active analysis tree cannot
+% fall back to the old fixed-size Common171 workflow.
 
-fprintf(['Deprecated wrapper: eval_common171_vs_specific300_all8.m is a ' ...
-    'legacy Common171 comparison. Use the CommonK pipeline for current work.\n']);
-
-run(fullfile(fileparts(mfilename('fullpath')), '..', ...
-    '_archive_no_definitivo', 'eval_common171_vs_specific300_all8_legacy.m'));
+error(['eval_common171_vs_specific300_all8.m is deprecated and disabled. ' ...
+    'Use run_full_commonK_pipeline_8wf.m for the automatic CommonK workflow.']);
