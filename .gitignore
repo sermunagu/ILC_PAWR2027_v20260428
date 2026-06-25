@@ -1,0 +1,47 @@
+# Heavy/generated data
+measurements/
+results/
+generated_outputs/
+experiment*/
+
+# MATLAB/data artifacts
+*.mat
+*.fig
+*.asv
+*.mlx
+*.slx
+deploy_package.mat
+
+# Archives/compressed files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Logs and generated document intermediates
+*.log
+*.aux
+*.toc
+*.out
+*.synctex.gz
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Python/test/cache artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+temp/
+tmp/
+cache/
+
+# Local/private Codex notes
+_codex_private/
+.codex/
+.agents/

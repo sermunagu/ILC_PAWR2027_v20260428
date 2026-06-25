@@ -1,0 +1,19 @@
+Importante:
+	- Falta por cambiar el cálculo del NMSE
+	- Falta por activar el domp partial.
+
+
+version 20250717:
+- configurations of models moved to file modelsConfig.m.
+- created a new type of initialization 'compositeall' that is the mix of all the models (MP+GMP+DDR+FV+CVS).
+	- *added removed repeated after the initialization to account for this case that will have repeated regressors.
+
+version 20250701:
+
+- Lines 230–231 (initialization) in regressorManager.m: Modified the formulation of part C of the GMP structure, replacing the term x(n-l-m) * |x(n-l)|^k with x(n-l) * |x(n-l+m)|^k, in accordance with the definition provided in Morgan’s original paper on GMP modeling.
+- Lines 79–83 (mutatememory) in Regressor.m: Introduced Pneg, the probability of reducing one memory tap instead of increasing it. Currently set to 0.1; further experiments are pending to validate and tune this parameter.
+- Replaced the definitions of Qpmax and Qnmax: Now correctly defined as maximum causal memory and maximum non-causal memory, respectively. 
+- Lines 28-31 (RC-DOMP_GVG.m): added soft thresholding (https://doi.org/10.1109/PAWR63954.2025.10904039) to avoid numerical issues in the DOMP execution.
+
+
+

@@ -1,0 +1,68 @@
+\documentclass[8pt]{article}
+
+\pdfpagewidth=11in
+\pdfpageheight=8.5in
+\setlength{\paperwidth}{11in}
+\setlength{\paperheight}{8.5in}
+\setlength{\textwidth}{10.2in}
+\setlength{\textheight}{7.7in}
+\setlength{\oddsidemargin}{-0.75in}
+\setlength{\evensidemargin}{-0.75in}
+\setlength{\topmargin}{-0.85in}
+\setlength{\parindent}{0pt}
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{1.15}
+
+\begin{document}
+
+\begin{center}
+{\Large \textbf{5G-NR Waveform Configuration Summary}}\\
+{\small Generated from \texttt{toolbox\_signalgen/config\_signal\_master\_5waveforms.m}}
+\end{center}
+
+\vspace{0.4em}
+
+\textbf{Common parameters.}
+All waveforms use $\Delta f = 60$ kHz, $NFFT = 2048$, $Nslots = 4$, oversampling factor $ovs = 4$, final sampling rate $fsovs = 491.52$ MHz, 256-QAM, central subcarrier disabled, per-carrier clipping disabled, \texttt{BPideal} spectrum shaping, and 491520 generated samples.
+
+\vspace{0.8em}
+
+{\scriptsize
+\begin{tabular}{|c|c|p{0.62in}|p{0.86in}|p{0.95in}|p{0.98in}|p{1.0in}|p{1.35in}|p{1.05in}|p{1.25in}|}
+\hline
+\textbf{ID} &
+\textbf{Carriers} &
+\textbf{NPRB} &
+\textbf{Nominal BW} &
+\textbf{Effective BW} &
+\textbf{Foff} &
+\textbf{Occupied span} &
+\textbf{Passband mask edges} &
+\textbf{EVM after CFR} &
+\textbf{NMSE after vs before CFR} \\
+\hline
+1 & 1 & [6] & [5 MHz] & [4.32 MHz] & [0 MHz] & 4.32 MHz centered & [-0.008789, 0.008789] & 11.3878\% & -17.9964 dB \\
+\hline
+2 & 1 & [6] & [5 MHz] & [4.32 MHz] & [-77.5 MHz] & 5 MHz channel at lower 160 MHz edge & [-0.324870, -0.307292] & 11.3055\% & -18.0518 dB \\
+\hline
+3 & 1 & [6] & [5 MHz] & [4.32 MHz] & [77.5 MHz] & 5 MHz channel at upper 160 MHz edge & [0.307292, 0.324870] & 11.3055\% & -18.0515 dB \\
+\hline
+4 & 2 & [24, 24] & [20, 20] MHz & [17.28, 17.28] MHz & [-70, 70] MHz & 157.28 MHz edge-to-edge & [-0.320312, -0.25], [0.25, 0.320312] & [10.1533, 10.0848]\% & [-23.7395, -23.7395] dB \\
+\hline
+5 & 2 & [107, 107] & [80, 80] MHz & [77.04, 77.04] MHz & [-40, 40] MHz & 157.04 MHz edge-to-edge & [-0.319743, -0.00651], [0.00651, 0.319743] & [7.0156, 6.29893]\% & [-29.1362, -29.1362] dB \\
+\hline
+6 & 1 & [24] & [20 MHz] & [17.28 MHz] & [0 MHz] & 17.28 MHz centered & [-0.035156, 0.035156] & 6.00781\% & -23.3934 dB \\
+\hline
+7 & 1 & [65] & [50 MHz] & [46.8 MHz] & [0 MHz] & 46.8 MHz centered & [-0.095215, 0.095215] & 3.99399\% & -26.8996 dB \\
+\hline
+8 & 1 & [135] & [100 MHz] & [97.2 MHz] & [0 MHz] & 97.2 MHz centered & [-0.197754, 0.197754] & 3.18679\% & -28.9795 dB \\
+\hline
+\end{tabular}
+}
+
+\vspace{0.8em}
+
+\textbf{Notes.}
+The passband mask edges are normalized to Nyquist, i.e. to $fsovs/2 = 245.76$ MHz, matching the format consumed by \texttt{spectrumMask} and \texttt{clipping\_PAPR\_ICF}. EVM was measured after CFR using \texttt{analiza\_medidas\_5GNR\_v6}. NMSE was computed directly between the CFR output and the pre-CFR waveform, after mean removal and power normalization. Multi-carrier values are reported per carrier.
+
+\end{document}
